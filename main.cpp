@@ -57,6 +57,28 @@ public:
       writer.send(Http::Code::Conflict, e.what());
     }
   }
+
+  void listAttributes(const Rest::Request &request,
+                      Http::ResponseWriter writer) {
+    try {
+      Json::Value value(Json::objectValue);
+
+      for (auto name : drmaa::attribute_names()) {
+        value[name] = false;
+      }
+      for (auto name : drmaa::attribute_namesv()) {
+        value[name] = true;
+      }
+      Json::StyledWriter jsonWriter;
+      auto json = jsonWriter.write(value);
+      auto response = writer.stream(Http::Code::Ok);
+      response << json.c_str() << Http::ends;
+    } catch (drmaa::exception &e) {
+      writer.send(Http::Code::Internal_Server_Error, e.what());
+    }
+  }
+
+private:
   std::shared_ptr<StatefulDrmaa> statefulDrmaa;
 };
 
@@ -67,6 +89,9 @@ int main() {
   Rest::Router router;
   Rest::Routes::Post(router, "/run",
                      Rest::Routes::bind(&Controller::run, &controller));
+  Rest::Routes::Get(
+      router, "/attributes",
+      Rest::Routes::bind(&Controller::listAttributes, &controller));
   auto options = Http::Endpoint::options().threads(1);
   Address address = "*:9080";
   Http::Endpoint endpoint(address);
