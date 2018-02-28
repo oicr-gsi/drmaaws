@@ -30,10 +30,26 @@ like and execute to run on port 9080.
 
 The web service attempts to provide a stateless interface for accessing DRMAA.
 This means if you attempt to execute exactly the same command again, it will
-check the status of that command rather than re-executing it. Try out this
-sleep command:
+check the status of that command rather than re-executing it.
 
-    curl -i -H "Content-Type: application/json" -X POST -d '{"drmaa_remote_command":"/bin/sleep", "drmaa_v_argv":["1m"]}' http://localhost:9080/run
+Launch the DRMAAWS as the user you want to execute:
+
+     DRMAA_PSK=password ./drmaaws
+
+The `DRMAA_PSK` is a pre-shared key between client and server that allows
+authorization using signed requests. Each request should include the header:
+
+     Authorization: signed sha1sum
+
+Where sha1sum is the SHA1 sum of the PSK and the request body. This is
+vulnerable to replay attack, but since the system is idempotent, this is not a
+problem.
+
+Try out this sleep command:
+
+    echo -n '{"drmaa_remote_command":"/bin/sleep", "drmaa_v_argv":["1m"]}' > test.data
+    SIG="$( (echo -n $DRMAA_PSK; cat test.data) | tr -d '\n' | sha1sum | cut -f 1 -d " ")"
+    curl -i -H "Content-Type: application/json" -H "Authorization: signed ${SIG}" -X POST -d @test.data http://localhost:9080/run
 
 The allowed parameters are:
 

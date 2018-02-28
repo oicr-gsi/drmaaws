@@ -2,9 +2,55 @@
 #include <pistache/endpoint.h>
 #include <pistache/router.h>
 #include <json/json.h>
+#include <openssl/sha.h>
 #include "stateful.hpp"
 
 using namespace Pistache;
+
+static int hexdigit(char c) {
+  switch (c) {
+  case '0':
+    return 0;
+  case '1':
+    return 1;
+  case '2':
+    return 2;
+  case '3':
+    return 3;
+  case '4':
+    return 4;
+  case '5':
+    return 5;
+  case '6':
+    return 6;
+  case '7':
+    return 7;
+  case '8':
+    return 8;
+  case '9':
+    return 9;
+  case 'a':
+  case 'A':
+    return 10;
+  case 'b':
+  case 'B':
+    return 11;
+  case 'c':
+  case 'C':
+    return 12;
+  case 'd':
+  case 'D':
+    return 13;
+  case 'e':
+  case 'E':
+    return 14;
+  case 'f':
+  case 'F':
+    return 15;
+  default:
+    return -1;
+  }
+}
 
 class Controller {
 public:
@@ -12,6 +58,52 @@ public:
       drmaa::exception)
       : statefulDrmaa(state) {}
   void run(const Rest::Request &request, Http::ResponseWriter writer) {
+    static const char *psk = getenv("DRMAA_PSK");
+    static const size_t psk_length = strlen(psk);
+
+    auto authheader = request.headers().tryGetRaw("Authorization");
+    if (authheader.isEmpty()) {
+      writer.send(Http::Code::Bad_Request, "Request is not signed.");
+      return;
+    }
+    auto authorization = authheader.get().value();
+    if (authorization.compare(0, 7, "signed ") != 0) {
+      writer.send(Http::Code::Bad_Request, "Request is not signed.");
+      return;
+    }
+
+    SHA_CTX shaContext;
+    if (!SHA1_Init(&shaContext)) {
+      writer.send(Http::Code::Internal_Server_Error,
+                  "Security checking error.");
+      return;
+    }
+    if (!SHA1_Update(&shaContext, psk, psk_length)) {
+      writer.send(Http::Code::Internal_Server_Error,
+                  "Security checking error.");
+      return;
+    }
+    if (!SHA1_Update(&shaContext, request.body().c_str(),
+                     request.body().length())) {
+      writer.send(Http::Code::Internal_Server_Error,
+                  "Security checking error.");
+      return;
+    }
+    unsigned char sum[SHA_DIGEST_LENGTH];
+    if (!SHA1_Final(sum, &shaContext)) {
+      writer.send(Http::Code::Internal_Server_Error,
+                  "Security checking error.");
+      return;
+    }
+
+    for (size_t i = 0; i < SHA_DIGEST_LENGTH; i++) {
+      auto provided = hexdigit(authorization[7 + i * 2]) * 0x10 +
+                      hexdigit(authorization[7 + i * 2 + 1]);
+      if (sum[i] != provided) {
+        writer.send(Http::Code::Unauthorized, "Invalid signature.");
+        return;
+      }
+    }
 
     Json::CharReaderBuilder builder;
     builder["collectComments"] = false;
@@ -83,6 +175,10 @@ private:
 };
 
 int main() {
+  if (getenv("DRMAA_PSK") == nullptr) {
+    std::cerr << "No preshared key set via DRMAA_PSK." << std::endl;
+    return 1;
+  }
   auto statefulDrmaa = std::make_shared<StatefulDrmaa>();
   Controller controller(statefulDrmaa);
 
