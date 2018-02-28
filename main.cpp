@@ -71,6 +71,10 @@ public:
       writer.send(Http::Code::Bad_Request, "Request is not signed.");
       return;
     }
+    if (authorization.length() < 7 + 2 * SHA_DIGEST_LENGTH) {
+      writer.send(Http::Code::Bad_Request, "Signature is too short.");
+      return;
+    }
 
     SHA_CTX shaContext;
     if (!SHA1_Init(&shaContext)) {
