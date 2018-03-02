@@ -4,6 +4,8 @@
 #include <json/json.h>
 #include <openssl/sha.h>
 #include "stateful.hpp"
+#include "sys/types.h"
+#include "sys/sysinfo.h"
 
 using namespace Pistache;
 
@@ -176,12 +178,21 @@ public:
     }
   }
   void metrics(const Rest::Request &request, Http::ResponseWriter writer) {
+    struct sysinfo memInfo;
+    sysinfo(&memInfo);
+
     writer.headers().add<Http::Header::ContentType>(MIME(Text, Plain));
     auto response = writer.stream(Http::Code::Ok);
     response << "# TYPE drmaaws_cache_size gauge\ndrmaaws_cache_size "
              << statefulDrmaa->cacheSize() << "\n"
              << "# TYPE drmaaws_db_size gauge\ndrmaaws_db_size "
-             << statefulDrmaa->dbSize() << "\n" << Http::ends;
+             << statefulDrmaa->dbSize() << "\n"
+             << "# TYPE drmaaws_ram gauge\ndrmaaws_ram "
+             << std::to_string(memInfo.totalram * memInfo.mem_unit).c_str()
+             << "\n"
+             << "# TYPE drmaaws_swap gauge\ndrmaaws_swap "
+             << std::to_string(memInfo.totalswap * memInfo.mem_unit).c_str()
+             << "\n" << Http::ends;
   }
 
 private:
