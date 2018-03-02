@@ -147,6 +147,7 @@ public:
     }
     try {
       auto status = statefulDrmaa->run(job);
+      writer.headers().add<Http::Header::ContentType>(MIME(Application, Json));
       auto response = writer.stream(Http::Code::Ok);
       response << "\"" << status.c_str() << "\"" << Http::ends;
     } catch (drmaa::exception &e) {
@@ -167,11 +168,20 @@ public:
       }
       Json::StyledWriter jsonWriter;
       auto json = jsonWriter.write(value);
+      writer.headers().add<Http::Header::ContentType>(MIME(Application, Json));
       auto response = writer.stream(Http::Code::Ok);
       response << json.c_str() << Http::ends;
     } catch (drmaa::exception &e) {
       writer.send(Http::Code::Internal_Server_Error, e.what());
     }
+  }
+  void metrics(const Rest::Request &request, Http::ResponseWriter writer) {
+    writer.headers().add<Http::Header::ContentType>(MIME(Text, Plain));
+    auto response = writer.stream(Http::Code::Ok);
+    response << "# TYPE drmaaws_cache_size gauge\ndrmaaws_cache_size "
+             << statefulDrmaa->cacheSize() << "\n"
+             << "# TYPE drmaaws_db_size gauge\ndrmaaws_db_size "
+             << statefulDrmaa->dbSize() << "\n" << Http::ends;
   }
 
 private:
@@ -192,6 +202,8 @@ int main() {
   Rest::Routes::Get(
       router, "/attributes",
       Rest::Routes::bind(&Controller::listAttributes, &controller));
+  Rest::Routes::Get(router, "/metrics",
+                    Rest::Routes::bind(&Controller::metrics, &controller));
   auto options = Http::Endpoint::options().threads(1);
   Address address = "*:9080";
   Http::Endpoint endpoint(address);

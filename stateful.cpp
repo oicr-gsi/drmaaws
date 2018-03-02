@@ -152,3 +152,12 @@ std::string StatefulDrmaa::run(const JobRequest &job) throw(drmaa::exception) {
   std::cerr << job_id << ": Started as " << j->name() << std::endl;
   return "QUEUED";
 }
+
+size_t StatefulDrmaa::cacheSize() const { return jobs.size(); }
+size_t StatefulDrmaa::dbSize() {
+  SQLite::Statement query(db, "SELECT COUNT(*) FROM jobs");
+  if (query.executeStep()) {
+    return query.getColumn(0).getInt();
+  }
+  return 0;
+}

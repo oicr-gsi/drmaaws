@@ -28,6 +28,9 @@ public:
 
   std::string run(const JobRequest &job) throw(drmaa::exception);
 
+  size_t cacheSize() const;
+  size_t dbSize();
+
 private:
   std::shared_ptr<drmaa::session> sess;
   SQLite::Database db;
