@@ -9,6 +9,8 @@
 
 using namespace Pistache;
 
+const char *hexnum = "0123456789ABCDEF";
+
 static int hexdigit(char c) {
   switch (c) {
   case '0':
@@ -101,6 +103,12 @@ public:
                   "Security checking error.");
       return;
     }
+    std::cerr << "Checking hash: client=" << authorization << " "
+              << request.body().length() << " bytes server=signed ";
+    for (size_t i = 0; i < SHA_DIGEST_LENGTH; i++) {
+      std::cerr << hexnum[sum[i] % 0xf] << hexnum[sum[i] >> 4];
+    }
+    std::cerr << std::endl;
 
     for (size_t i = 0; i < SHA_DIGEST_LENGTH; i++) {
       auto provided = hexdigit(authorization[7 + i * 2]) * 0x10 +
