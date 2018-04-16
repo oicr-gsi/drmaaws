@@ -25,7 +25,7 @@ static const char *determineStatus(drmaa::job &job) {
     return "FAILED";
   }
 
-  return {};
+  return nullptr;
 }
 
 JobRequest::JobRequest() {}
